@@ -12,36 +12,32 @@ import (
 	"github.com/yuk7/wsllib-go"
 )
 
+type Options struct {
+	BackupLocation    string
+	DetectRootfsFiles bool
+}
+
 //Execute is default install entrypoint
-func Execute(name string, args []string) {
+func Execute(name string, options *Options) {
 	if !wsllib.WslIsDistributionRegistered(name) {
 		var rootPath string
 		var showProgress bool
 		jsonPreset, _ := preset.ReadParsePreset()
-		switch len(args) {
-		case 0:
-			rootPath = detectRootfsFiles()
-			if jsonPreset.InstallFile != "" {
-				rootPath = jsonPreset.InstallFile
-			}
-			showProgress = true
 
-		case 1:
-			showProgress = false
-			if args[0] == "--root" {
+		if options != nil {
+			if len(options.BackupLocation) != 0 {
+				rootPath = options.BackupLocation
+			} else {
 				rootPath = detectRootfsFiles()
 				if jsonPreset.InstallFile != "" {
 					rootPath = jsonPreset.InstallFile
 				}
-			} else {
-				rootPath = args[0]
-			}
 
-		default:
-			utils.ErrorExit(os.ErrInvalid, true, true, false)
+				showProgress = options.DetectRootfsFiles
+			}
 		}
 
-		if args == nil {
+		if options == nil {
 			if isInstalledFilesExist() {
 				var in string
 				fmt.Printf("An old installation file was found.\n")
@@ -62,7 +58,7 @@ func Execute(name string, args []string) {
 
 		err := Install(name, rootPath, showProgress)
 		if err != nil {
-			utils.ErrorExit(err, showProgress, true, args == nil)
+			utils.ErrorExit(err, showProgress, true, options == nil)
 		}
 
 		if jsonPreset.WslVersion == 1 || jsonPreset.WslVersion == 2 {
@@ -75,10 +71,10 @@ func Execute(name string, args []string) {
 				utils.StdoutGreenPrintln("Installation complete")
 			}
 		} else {
-			utils.ErrorExit(err, showProgress, true, args == nil)
+			utils.ErrorExit(err, showProgress, true, options == nil)
 		}
 
-		if args == nil {
+		if options == nil {
 			fmt.Fprintf(os.Stdout, "Press enter to continue...")
 			bufio.NewReader(os.Stdin).ReadString('\n')
 		}

@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 
@@ -12,19 +13,38 @@ import (
 	wslreg "github.com/yuk7/wslreglib-go"
 )
 
-//Execute is default install entrypoint
-func Execute(name string, args []string) {
-	var err error
-	uid, flags := get.WslGetConfig(name)
-	if len(args) == 2 {
-		switch args[0] {
-		case "--default-uid":
-			var intUID int
-			intUID, err = strconv.Atoi(args[1])
-			uid = uint64(intUID)
+type Setting string
 
-		case "--default-user":
-			str, _, errtmp := run.ExecRead(name, "id -u "+utils.DQEscapeString(args[1]))
+const (
+	DefaultUID  Setting = "default-uid"
+	DefaultUser Setting = "default-user"
+	AppendPath  Setting = "append-path"
+	MountDrive  Setting = "mount-drive"
+	WSLVersion  Setting = "wsl-version"
+	DefaultTerm Setting = "default-term"
+	FlagsVal    Setting = "flags-val"
+)
+
+//Execute is default install entrypoint
+func Execute(name string, setting *Setting, value interface{}) {
+	var err error
+	ok := true
+	uid, flags := get.WslGetConfig(name)
+
+	if setting != nil && value != nil {
+		switch *setting {
+		case DefaultUID:
+			var intUID uint64
+			intUID, ok = value.(uint64)
+
+			if ok {
+				uid = uint64(intUID)
+			}
+
+		case DefaultUser:
+			user := fmt.Sprintf("%v", value)
+
+			str, _, errtmp := run.ExecRead(name, "id -u "+utils.DQEscapeString(user))
 			err = errtmp
 			if err == nil {
 				var intUID int
@@ -35,28 +55,33 @@ func Execute(name string, args []string) {
 				}
 			}
 
-		case "--append-path":
+		case AppendPath:
 			var b bool
-			b, err = strconv.ParseBool(args[1])
+			arg := fmt.Sprintf("%v", value)
+
+			b, err = strconv.ParseBool(arg)
 			if b {
 				flags |= wsllib.FlagAppendNTPath
 			} else {
 				flags ^= wsllib.FlagAppendNTPath
 			}
 
-		case "--mount-drive":
+		case MountDrive:
 			var b bool
-			b, err = strconv.ParseBool(args[1])
+			arg := fmt.Sprintf("%v", value)
+
+			b, err = strconv.ParseBool(arg)
 			if b {
 				flags |= wsllib.FlagEnableDriveMounting
 			} else {
 				flags ^= wsllib.FlagEnableDriveMounting
 			}
 
-		case "--wsl-version":
+		case WSLVersion:
 			var intWslVer int
-			intWslVer, err = strconv.Atoi(args[1])
-			if err == nil {
+			intWslVer, ok = value.(int)
+
+			if ok {
 				if intWslVer == 1 || intWslVer == 2 {
 					err = wslreg.SetWslVersion(name, intWslVer)
 				} else {
@@ -65,37 +90,53 @@ func Execute(name string, args []string) {
 				}
 			}
 
-		case "--default-term":
-			value := 0
-			switch args[1] {
+		case DefaultTerm:
+			termValue := 0
+			term := fmt.Sprintf("%v", value)
+
+			switch term {
 			case "default", strconv.Itoa(wslreg.FlagWsldlTermDefault):
-				value = wslreg.FlagWsldlTermDefault
+				termValue = wslreg.FlagWsldlTermDefault
 			case "wt", strconv.Itoa(wslreg.FlagWsldlTermWT):
-				value = wslreg.FlagWsldlTermWT
+				termValue = wslreg.FlagWsldlTermWT
 			case "flute", strconv.Itoa(wslreg.FlagWsldlTermFlute):
-				value = wslreg.FlagWsldlTermFlute
+				termValue = wslreg.FlagWsldlTermFlute
 			default:
 				err = os.ErrInvalid
+			}
+
+			if err == nil {
 				break
 			}
-			profile, err := wslreg.GetProfileFromName(name)
-			if err != nil {
+
+			profile, tempErr := wslreg.GetProfileFromName(name)
+			if tempErr != nil {
+				err = tempErr
 				break
 			}
-			profile.WsldlTerm = value
+			profile.WsldlTerm = termValue
 			err = wslreg.WriteProfile(profile)
 
-		case "--flags-val":
+		case FlagsVal:
 			var intFlags int
-			intFlags, err = strconv.Atoi(args[1])
-			flags = uint32(intFlags)
+			intFlags, ok = value.(int)
+
+			if ok {
+				flags = uint32(intFlags)
+			}
 
 		default:
 			err = os.ErrInvalid
 		}
+
+		if !ok {
+			err = os.ErrInvalid
+		}
+
 		if err != nil {
 			utils.ErrorExit(err, true, true, false)
 		}
+
 		wsllib.WslConfigureDistribution(name, uid, flags)
 	} else {
 		utils.ErrorExit(os.ErrInvalid, true, true, false)

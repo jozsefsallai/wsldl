@@ -11,29 +11,50 @@ import (
 	wslreg "github.com/yuk7/wslreglib-go"
 )
 
+type Setting string
+
+const (
+	DefaultUID Setting = "default-uid"
+	AppendPath Setting = "append-path"
+	MountDrive Setting = "mount-drive"
+	WSLVersion Setting = "wsl-version"
+	LXGUID     Setting = "lxguid"
+	LXUID      Setting = "lxuid"
+
+	DefaultTerm     Setting = "default-term"
+	DefaultTerminal Setting = "default-terminal"
+
+	WTProfileName  Setting = "wt-profile-name"
+	WTProfileName2 Setting = "wt-profilename"
+	WTProfileName3 Setting = "wt-pn"
+
+	FlagsVal  Setting = "flags-val"
+	FlagsBits Setting = "flags-bits"
+)
+
 //Execute is default install entrypoint
-func Execute(name string, args []string) {
+func Execute(name string, setting *Setting) {
 	uid, flags := WslGetConfig(name)
 	profile, proferr := wslreg.GetProfileFromName(name)
-	if len(args) == 1 {
-		switch args[0] {
-		case "--default-uid":
+	if setting != nil {
+		switch *setting {
+		case DefaultUID:
 			print(uid)
 
-		case "--append-path":
+		case AppendPath:
 			print(flags&wsllib.FlagAppendNTPath == wsllib.FlagAppendNTPath)
 
-		case "--mount-drive":
+		case MountDrive:
 			print(flags&wsllib.FlagEnableDriveMounting == wsllib.FlagEnableDriveMounting)
 
-		case "--wsl-version":
+		case WSLVersion:
 			if flags&wsllib.FlagEnableWsl2 == wsllib.FlagEnableWsl2 {
 				print("2")
 			} else {
 				print("1")
 			}
 
-		case "--lxguid", "--lxuid":
+		case LXGUID, LXUID:
 			if profile.UUID == "" {
 				if proferr != nil {
 					utils.ErrorExit(proferr, true, true, false)
@@ -42,7 +63,7 @@ func Execute(name string, args []string) {
 			}
 			print(profile.UUID)
 
-		case "--default-term", "--default-terminal":
+		case DefaultTerm, DefaultTerminal:
 			switch profile.WsldlTerm {
 			case wslreg.FlagWsldlTermWT:
 				print("wt")
@@ -52,7 +73,7 @@ func Execute(name string, args []string) {
 				print("default")
 			}
 
-		case "--wt-profile-name", "--wt-profilename", "--wt-pn":
+		case WTProfileName, WTProfileName2, WTProfileName3:
 			if profile.DistributionName != "" {
 				name = profile.DistributionName
 			}
@@ -75,10 +96,10 @@ func Execute(name string, args []string) {
 				utils.ErrorExit(errors.New("profile not found"), true, true, false)
 			}
 
-		case "--flags-val":
+		case FlagsVal:
 			print(flags)
 
-		case "--flags-bits":
+		case FlagsBits:
 			fmt.Printf("%04b", flags)
 
 		default:
